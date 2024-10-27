@@ -3,10 +3,9 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import LabelEncoder, StandardScaler, PolynomialFeatures
+from sklearn.linear_model import LinearRegression, Ridge, Lasso
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import cross_val_score
 from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 # Veriyi yükleyin
@@ -33,14 +32,24 @@ label_encoder = LabelEncoder()
 data['sex'] = label_encoder.fit_transform(data['sex'])
 data['smoker'] = label_encoder.fit_transform(data['smoker'])
 
+# Polinom özellikler oluşturun
+poly = PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)
+poly_features = poly.fit_transform(data[['bmi', 'age', 'children']])
+poly_feature_names = poly.get_feature_names_out(['bmi', 'age', 'children'])
+
 # Veriyi bağımsız değişkenler (X) ve hedef değişken (y) olarak ayırın
-X = data.drop(['charges', 'region'], axis=1)
+X = pd.DataFrame(poly_features, columns=poly_feature_names)
+X = pd.concat([X, data[['sex', 'smoker']]], axis=1)
 y = data['charges']
 
 # Monte Carlo simülasyonu parametreleri
 n_simulations = 100  # Simülasyon sayısı
 linear_mse_scores = []
 linear_mae_scores = []
+ridge_mse_scores = []
+ridge_mae_scores = []
+lasso_mse_scores = []
+lasso_mae_scores = []
 random_forest_mse_scores = []
 random_forest_mae_scores = []
 
@@ -53,15 +62,28 @@ for _ in range(n_simulations):
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    # Linear Regression modelini eğitin ve doğrulama puanlarını kaydedin
+    # Linear Regression modeli
     linear_reg_model = LinearRegression()
-    linear_reg_scores = cross_val_score(linear_reg_model, X_train_scaled, y_train, cv=5)
     linear_reg_model.fit(X_train_scaled, y_train)
     y_pred_linear = linear_reg_model.predict(X_test_scaled)
     linear_mse_scores.append(mean_squared_error(y_test, y_pred_linear))
     linear_mae_scores.append(mean_absolute_error(y_test, y_pred_linear))
 
-    # Random Forest modelini eğitin ve doğrulama puanlarını kaydedin
+    # Ridge Regression modeli
+    ridge_model = Ridge(alpha=1.0)
+    ridge_model.fit(X_train_scaled, y_train)
+    y_pred_ridge = ridge_model.predict(X_test_scaled)
+    ridge_mse_scores.append(mean_squared_error(y_test, y_pred_ridge))
+    ridge_mae_scores.append(mean_absolute_error(y_test, y_pred_ridge))
+
+    # Lasso Regression modeli
+    lasso_model = Lasso(alpha=0.1)
+    lasso_model.fit(X_train_scaled, y_train)
+    y_pred_lasso = lasso_model.predict(X_test_scaled)
+    lasso_mse_scores.append(mean_squared_error(y_test, y_pred_lasso))
+    lasso_mae_scores.append(mean_absolute_error(y_test, y_pred_lasso))
+
+    # Random Forest modeli
     random_forest_model = RandomForestRegressor(random_state=42)
     random_forest_model.fit(X_train_scaled, y_train)
     y_pred_rf = random_forest_model.predict(X_test_scaled)
@@ -111,18 +133,20 @@ print("En az erkek olan bölge:", min_male_region)
 
 print("---------------------------------------------")
 
-# Ortalama Linear Regression ve Random Forest sonuçlarını yazdır 
-print("Linear Regression Ortalama MSE:", np.mean(linear_mse_scores))
-print("Linear Regression Ortalama MAE:", np.mean(linear_mae_scores))
-print("Random Forest Ortalama MSE:", np.mean(random_forest_mse_scores))
-print("Random Forest Ortalama MAE:", np.mean(random_forest_mae_scores))
+# Ortalama sonuçları yazdır
+print("Linear Regression Ortalama MSE: {:.2f}".format(np.mean(linear_mse_scores)))
+print("Linear Regression Ortalama MAE: {:.2f}".format(np.mean(linear_mae_scores)))
+print("Ridge Regression Ortalama MSE: {:.2f}".format(np.mean(ridge_mse_scores)))
+print("Ridge Regression Ortalama MAE: {:.2f}".format(np.mean(ridge_mae_scores)))
+print("Lasso Regression Ortalama MSE: {:.2f}".format(np.mean(lasso_mse_scores)))
+print("Lasso Regression Ortalama MAE: {:.2f}".format(np.mean(lasso_mae_scores)))
+print("Random Forest Ortalama MSE: {:.2f}".format(np.mean(random_forest_mse_scores)))
+print("Random Forest Ortalama MAE: {:.2f}".format(np.mean(random_forest_mae_scores)))
 
 print("---------------------------------------------")
 
 # Kadın ve erkek için bölgelere göre ortalama sağlık sigorta maliyetlerini hesaplayın
 mean_charges = data.groupby(['region', 'sex'])['charges'].mean().unstack()
-
-# Sigorta maliyet sonuçlarını yazdır
 print("Bölgelere göre erkekler ve kadınlar için ortalama sigorta maliyeti")
 regions = ['northeast', 'northwest', 'southeast', 'southwest']
 for region in regions:
