@@ -1,158 +1,137 @@
-import pandas as pd
+import random
 import numpy as np
-import seaborn as sns
 import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler, PolynomialFeatures
-from sklearn.linear_model import LinearRegression, Ridge, Lasso
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+import pandas as pd
 
-# Veriyi yükleyin
-data = pd.read_csv("insurance.csv")
+# Sigorta maliyeti model parametreleri (Yuvarlanmış Değerler)
+age_coef = 242          # Yaşın etkisi
+bmi_coef = 76           # BMI'nin etkisi
+children_coef = 357     # Çocuk sayısının etkisi
+sex_male_coef = -453    # Erkek olmanın etkisi
+smoker_yes_coef = 15000  # Sigara içmenin etkisini düşürme
+region_northwest_coef = -85  # Kuzeybatı bölgesinin etkisi
+region_norteast_coef = -245 # Kuzeydoğu bölgesinin etkisi
+region_southeast_coef = -953 # Güneydoğu bölgesinin etkisi
+region_southwest_coef = -1361 # Güneybatı bölgesinin etkisi
 
-# Bmi dağılımını inceleyin
-sns.histplot(data['bmi'], bins=20, kde=True)
+# Simülasyon parametreleri
+simulations_list = [1, 10, 100, 1000, 10000, 100000]  # Simülasyon sayıları
+avg_costs = []  # Ortalama sigorta maliyetlerini saklamak için liste
+min_costs = []  # Minimum sigorta maliyetlerini saklamak için liste
+max_costs = []  # Maksimum sigorta maliyetlerini saklamak için liste
+std_devs = []
+
+# Fonksiyon: Sigorta maliyeti simülasyonu
+def insurance_simulation(num_simulations):
+    insurance_costs = []
+    
+    for _ in range(num_simulations):
+        # Gerçekçi parametreler
+        smoker = 0.12
+
+        bmi = np.random.normal(25, 4)    
+        bmi = max(18, min(bmi, 40))  # BMI'nin 18 ile 40 arasında kalmasını sağlamak
+        
+        age = random.randint(18, 64)    # Gerçekçi yaş aralığı
+        children = random.randint(0, 4) # Çocuk sayısı, 0 ile 4 arasında
+        region = random.choice(['northwest', 'southeast', 'southwest'])  # Bölge seçimi
+
+        # Sigorta maliyetinin hesaplanması
+        insurance_cost = (age_coef * age + 
+                          bmi_coef * bmi + 
+                          children_coef * children + 
+                          sex_male_coef * (1 if random.choice(['male', 'female']) == 'male' else 0) + 
+                          smoker_yes_coef * smoker +  # Sigara içme etkisini azaltmak
+                          region_northwest_coef * (1 if region == 'northwest' else 0) +
+                          region_norteast_coef * (1 if region == 'northeast' else 0) +
+                          region_southeast_coef * (1 if region == 'southeast' else 0) +
+                          region_southwest_coef * (1 if region == 'southwest' else 0)
+                          )
+        
+        insurance_costs.append(insurance_cost)
+    
+    # Sonuçların analizi
+    average_cost = sum(insurance_costs) / num_simulations
+    min_cost = min(insurance_costs)
+    max_cost = max(insurance_costs)
+    
+    return average_cost, min_cost, max_cost, insurance_costs
+
+all_costs = []
+
+# Her bir simülasyon sayısı için ortalama, minimum ve maksimum sigorta maliyetlerini hesapla
+for simulations in simulations_list:
+    avg_cost, min_cost, max_cost, costs = insurance_simulation(simulations)
+    avg_costs.append(avg_cost)
+    min_costs.append(min_cost)
+    max_costs.append(max_cost)
+    all_costs.append(costs)
+
+# Sigorta maliyetlerinin gerçek veriye dayalı analizi
+df = pd.read_csv("insurance.csv")
+real_avg_cost = df["charges"].mean()
+real_avg_min = df["charges"].min()
+real_avg_max = df["charges"].max()
+
+# Plotlama
+plt.plot(simulations_list, avg_costs, marker='o', label="Simülasyonla Hesaplanan Ortalama Maliyet")
+plt.axhline(y=real_avg_cost, color='r', linestyle='--', label="Gerçek Ortalama Maliyet")
+plt.xscale('log')  # X eksenini logaritmik skala yap
+plt.xlabel('Simülasyon Sayısı (Log Skala)')
+plt.ylabel('Ortalama Sigorta Maliyeti')
+plt.title('Farklı Simülasyon Sayılarıyla Sigorta Maliyeti Hesaplama')
+plt.legend()
 plt.show()
 
-# Sigara içicisi ve maliyet arasındaki ilişkiyi inceleyin
-sns.boxplot(x='smoker', y='charges', data=data)
-plt.show()
+for i in range(6):
+    plt.figure(figsize=(10, 6))
+    plt.hist(all_costs[i], bins=50, color='skyblue', edgecolor='black')
+    plt.xlabel('Sigorta Maliyeti')
+    plt.ylabel('Frekans')
+    plt.title(f"{simulations_list[i]} Simülasyondan Elde Edilen Sigorta Maliyetlerinin Dağılımı")
+    plt.show()
 
-# Sigara içicisi ve bölge arasındaki ilişkiyi inceleyin
-sns.countplot(x='smoker', hue='region', data=data)
-plt.show()
+# Simülasyonlar için sonuçları yazdırma
+for simulations, avg_cost, min_cost, max_cost in zip(simulations_list, avg_costs, min_costs, max_costs):
+    print(f"\nSimülasyon Sayısı: {simulations}")
+    print(f"Ortalama Sigorta Maliyeti: {avg_cost}")
+    print(f"En Düşük Sigorta Maliyeti: {min_cost}")
+    print(f"En Yüksek Sigorta Maliyeti: {max_cost}")
 
-# Bmi ve cinsiyet arasındaki ilişkiyi inceleyin
-sns.boxplot(x='sex', y='bmi', data=data)
-plt.show()
+# Gerçek sigorta maliyeti için ekrana yazdırma
+print(f"\nGerçek Ortalama Sigorta Maliyeti: {real_avg_cost}")
+print(f"Gerçek Minimum Sigorta Maliyeti: {real_avg_min}")
+print(f"Gerçek Maksimum Sigorta Maliyeti: {real_avg_max}")
 
-# Kategorik değişkenleri etiket kodlama ile dönüştürün
-label_encoder = LabelEncoder()
-data['sex'] = label_encoder.fit_transform(data['sex'])
-data['smoker'] = label_encoder.fit_transform(data['smoker'])
+# Bölgelere göre ortalama maliyetlerin hesaplanması
+regions = ['northwest', 'northeast', 'southeast', 'southwest']
+region_avg_costs = []
 
-# Polinom özellikler oluşturun
-poly = PolynomialFeatures(degree=2, interaction_only=True, include_bias=False)
-poly_features = poly.fit_transform(data[['bmi', 'age', 'children']])
-poly_feature_names = poly.get_feature_names_out(['bmi', 'age', 'children'])
-
-# Veriyi bağımsız değişkenler (X) ve hedef değişken (y) olarak ayırın
-X = pd.DataFrame(poly_features, columns=poly_feature_names)
-X = pd.concat([X, data[['sex', 'smoker']]], axis=1)
-y = data['charges']
-
-# Monte Carlo simülasyonu parametreleri
-n_simulations = 100  # Simülasyon sayısı
-linear_mse_scores = []
-linear_mae_scores = []
-ridge_mse_scores = []
-ridge_mae_scores = []
-lasso_mse_scores = []
-lasso_mae_scores = []
-random_forest_mse_scores = []
-random_forest_mae_scores = []
-
-for _ in range(n_simulations):
-    # Veriyi eğitim ve test kümelerine ayırın
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    # Veriyi ölçeklendirin
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-
-    # Linear Regression modeli
-    linear_reg_model = LinearRegression()
-    linear_reg_model.fit(X_train_scaled, y_train)
-    y_pred_linear = linear_reg_model.predict(X_test_scaled)
-    linear_mse_scores.append(mean_squared_error(y_test, y_pred_linear))
-    linear_mae_scores.append(mean_absolute_error(y_test, y_pred_linear))
-
-    # Ridge Regression modeli
-    ridge_model = Ridge(alpha=1.0)
-    ridge_model.fit(X_train_scaled, y_train)
-    y_pred_ridge = ridge_model.predict(X_test_scaled)
-    ridge_mse_scores.append(mean_squared_error(y_test, y_pred_ridge))
-    ridge_mae_scores.append(mean_absolute_error(y_test, y_pred_ridge))
-
-    # Lasso Regression modeli
-    lasso_model = Lasso(alpha=0.1)
-    lasso_model.fit(X_train_scaled, y_train)
-    y_pred_lasso = lasso_model.predict(X_test_scaled)
-    lasso_mse_scores.append(mean_squared_error(y_test, y_pred_lasso))
-    lasso_mae_scores.append(mean_absolute_error(y_test, y_pred_lasso))
-
-    # Random Forest modeli
-    random_forest_model = RandomForestRegressor(random_state=42)
-    random_forest_model.fit(X_train_scaled, y_train)
-    y_pred_rf = random_forest_model.predict(X_test_scaled)
-    random_forest_mse_scores.append(mean_squared_error(y_test, y_pred_rf))
-    random_forest_mae_scores.append(mean_absolute_error(y_test, y_pred_rf))
-
-# BMI değeri en yüksek ve en düşük olan bölgeler
-max_bmi_region = data.groupby('region')['bmi'].mean().idxmax()
-min_bmi_region = data.groupby('region')['bmi'].mean().idxmin()
-print("BMI değeri en yüksek olan bölge:", max_bmi_region)
-print("BMI değeri en düşük olan bölge:", min_bmi_region)
-
-print("---------------------------------------------")
-
-# En fazla çocuğa sahip bölgeyi bulun
-max_children_region = data.groupby('region')['children'].sum().idxmax()
-min_children_region = data.groupby('region')['children'].sum().idxmin()
-print("En fazla çocuğa sahip bölge:", max_children_region)
-print("En az çocuğa sahip bölge:", min_children_region)
-
-print("---------------------------------------------")
-
-# En fazla ve en az sigara içicisi olan bölgeler
-smoker_counts = data[data['smoker'] == 1].groupby('region')['smoker'].count()
-max_smoker_region = smoker_counts.idxmax()
-min_smoker_region = smoker_counts.idxmin()
-print("En fazla sigara içicisi bulunan bölge:", max_smoker_region)
-print("En az sigara içicisi bulunan bölge:", min_smoker_region)
-
-print("---------------------------------------------")
-
-# En fazla ve en az kız (0) olan bölge
-female_counts = data[data['sex'] == 0].groupby('region')['sex'].count()
-max_female_region = female_counts.idxmax()
-min_female_region = female_counts.idxmin()
-print("En fazla kız olan bölge:", max_female_region)
-print("En az kız olan bölge:", min_female_region)
-
-print("---------------------------------------------")
-
-# En fazla ve en az erkek (1) olan bölge
-male_counts = data[data['sex'] == 1].groupby('region')['sex'].count()
-max_male_region = male_counts.idxmax()
-min_male_region = male_counts.idxmin()
-print("En fazla erkek olan bölge:", max_male_region)
-print("En az erkek olan bölge:", min_male_region)
-
-print("---------------------------------------------")
-
-# Ortalama sonuçları yazdır
-print("Linear Regression Ortalama MSE: {:.2f}".format(np.mean(linear_mse_scores)))
-print("Linear Regression Ortalama MAE: {:.2f}".format(np.mean(linear_mae_scores)))
-print("Ridge Regression Ortalama MSE: {:.2f}".format(np.mean(ridge_mse_scores)))
-print("Ridge Regression Ortalama MAE: {:.2f}".format(np.mean(ridge_mae_scores)))
-print("Lasso Regression Ortalama MSE: {:.2f}".format(np.mean(lasso_mse_scores)))
-print("Lasso Regression Ortalama MAE: {:.2f}".format(np.mean(lasso_mae_scores)))
-print("Random Forest Ortalama MSE: {:.2f}".format(np.mean(random_forest_mse_scores)))
-print("Random Forest Ortalama MAE: {:.2f}".format(np.mean(random_forest_mae_scores)))
-
-print("---------------------------------------------")
-
-# Kadın ve erkek için bölgelere göre ortalama sağlık sigorta maliyetlerini hesaplayın
-mean_charges = data.groupby(['region', 'sex'])['charges'].mean().unstack()
-print("Bölgelere göre erkekler ve kadınlar için ortalama sigorta maliyeti")
-regions = ['northeast', 'northwest', 'southeast', 'southwest']
 for region in regions:
-    if region in mean_charges.index:
-        print(f"{region.capitalize()}:")
-        female_mean = mean_charges.loc[region, 0]  # Kadınların ortalaması
-        male_mean = mean_charges.loc[region, 1]    # Erkeklerin ortalaması
-        print(f"Kadın: ${female_mean:,.2f}")
-        print(f"Erkek: ${male_mean:,.2f}")
+    region_costs = [
+        age_coef * random.randint(18, 64) +
+        bmi_coef * max(18, min(np.random.normal(25, 4), 40)) +
+        children_coef * random.randint(0, 4) +
+        sex_male_coef * (1 if random.choice(['male', 'female']) == 'male' else 0) +
+        smoker_yes_coef * 0.12 +
+        region_northwest_coef * (1 if region == 'northwest' else 0) +
+        region_norteast_coef * (1 if region == 'northeast' else 0) +
+        region_southeast_coef * (1 if region == 'southeast' else 0) +
+        region_southwest_coef * (1 if region == 'southwest' else 0)
+        for _ in range(10000)
+    ]
+    region_avg_costs.append(np.mean(region_costs))
+
+# Barplot oluşturma
+plt.figure(figsize=(8, 6))
+plt.bar(regions, region_avg_costs, color=['lightblue', 'lightgreen', 'salmon', 'gold'], edgecolor='black')
+plt.xlabel('Bölge')
+plt.ylabel('Ortalama Sigorta Maliyeti')
+plt.title('Bölgelere Göre Ortalama Sigorta Maliyetleri')
+plt.show()
+
+print("\n")
+
+# Bölge bazlı ortalamaları ekrana yazdırma
+for region, avg_cost in zip(regions, region_avg_costs):
+    print(f"{region.capitalize()} Bölgesi Ortalama Sigorta Maliyeti: {avg_cost:.2f}")
